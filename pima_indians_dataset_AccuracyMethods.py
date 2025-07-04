@@ -158,3 +158,22 @@ for model_name, metrics in all_model_metrics.items():
     print("  Confusion Matrix:")
     for row in metrics['Confusion Matrix']:
         print(f"    {row}")
+
+model_names = list(all_model_metrics.keys()); metrics_to_plot = ['Accuracy', 'Loss', 'Precision', 'Recall', 'F1-Score']
+plot_data = {metric: [all_model_metrics[model][metric] for model in model_names] for metric in metrics_to_plot}
+colors = ['skyblue', 'lightcoral', 'lightgreen', 'gold', 'mediumpurple']
+bar_width = 0.15
+index = list(range(len(model_names)))
+fig, ax = plt.subplots(figsize=(14, 8))
+
+for i, metric in enumerate(metrics_to_plot): ax.bar([x + (i - (len(metrics_to_plot) - 1) / 2) * bar_width for x in index], plot_data[metric], bar_width, label=metric, color=colors[i])
+
+plt.xlabel('Model', fontsize=12)
+plt.ylabel('Score', fontsize=12)
+plt.title('Model Performance Comparison (Test Set)', fontsize=14)
+plt.xticks(index, model_names, rotation=45, ha='right', fontsize=10)
+plt.ylim(0, 1)
+plt.legend(loc='lower right', bbox_to_anchor=(1.0, 0.0), fontsize=10)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.tight_layout()
+plt.show()
