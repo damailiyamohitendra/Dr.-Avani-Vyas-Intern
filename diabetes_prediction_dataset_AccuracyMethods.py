@@ -1,184 +1,132 @@
 import pandas as pd
 import xgboost as xgb
-import matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KNeighborsClassifier
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+import matplotlib.pyplot as plt
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.linear_model import LinearRegression
 
-try:
-    df = pd.read_csv('diabetes_prediction_dataset.csv')  # prints the whole dataset in one go
-    print("Dataset loaded!")
-    print(df)
-    print("\nDataset Info: ")
-    df.info()
-except FileNotFoundError:
-    print("File Not Found!!!")
-    exit()
-except Exception as e:
-    print(f"An error occurred while loading the CSV file: {e}")
-    exit()
+df = pd.read_csv('diabetes_prediction_dataset.csv')
+for col in df.select_dtypes(include='object').columns:
+    df[col] = LabelEncoder().fit_transform(df[col])
 
-for col in df.columns:
-    if df[col].dtype == 'object':
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col])
-
-X = df.drop(columns=['diabetes'], axis=1)
+x = df.drop('diabetes', axis=1)
 y = df['diabetes']
-print(f"Dataset shape: X={X.shape}, y={y.shape} (Classification)")
 
-print("\n2. Splitting data into training and testing sets...")
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
-print(f"Training data shape: X_train={X_train.shape}, y_train={y_train.shape}")
-print(f"Testing data shape: X_test={X_test.shape}, y_test={y_test.shape}")
 
-print("\n3. Applying feature scaling...")
 scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
-print("Features scaled successfully.")
+x_scaled = scaler.fit_transform(x)
 
-all_model_metrics = {}
-
-def print_metrics(model_name, y_true, y_pred):
-    accuracy = accuracy_score(y_true, y_pred)
-    loss = 1-accuracy
-    precision = precision_score(y_true, y_pred)
-    recall = recall_score(y_true, y_pred)
-    f1 = f1_score(y_true, y_pred)
-    cm = confusion_matrix(y_true, y_pred)
-
-    print(f"\n--- {model_name} Metrics ---")
-    print(f"Accuracy: {accuracy:.4f}")
-    print(f"Loss (Misclassification Rate): {loss:.4f}")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
-    print(f"F1-Score: {f1:.4f}")
-    print("\nConfusion Matrix:")
-    print(cm)
-
-    return {
-        'Accuracy': accuracy,
-        'Loss' : loss,
-        'Precision': precision,
-        'Recall': recall,
-        'F1-Score': f1,
-        'Confusion Matrix': cm.tolist()
-    }
+x_train, x_test, y_train, y_test = train_test_split(x_scaled, y, test_size=0.2, random_state=42)
 
 
-print("\n--- Training K-Nearest Neighbors (KNN) ---")
-knn_model = KNeighborsClassifier(n_neighbors=5)
-knn_model.fit(X_train_scaled, y_train)
-y_pred_knn = knn_model.predict(X_test_scaled)
-all_model_metrics['KNN'] = print_metrics('KNN', y_test, y_pred_knn)
-plt.show()
+x_vals = list(range(11))
+acc_rf = []
+acc_xg = []
+acc_log = []
+acc_nb = []
+acc_decision = []
+acc_knn = []
+acc_svm=[]
+acc_multi=[]
 
-print("\n --- Training Multi-Linear Regression ---")
-model= LinearRegression()
-model.fit(X_train, y_train)
-print(f"Model Coefficients: {model.coef_}")
-print(f"Model Intercept: {model.intercept_:.4f}")
 
-y_pred_continuous = model.predict(X_test)
-y_pred_binary = (y_pred_continuous > 0.5).astype(int)
-all_model_metrics['Multi-Linear Regression'] = print_metrics('Multi-Linear Regression', y_test, y_pred_binary)
+for i in x_vals:
+    model_rf = RandomForestClassifier(random_state=i)
+    model_rf.fit(x_train, y_train)
+    acc_rf.append(accuracy_score(y_test, model_rf.predict(x_test)))
 
-print("\n--- Training Random Forest ---")
-rf_model = RandomForestClassifier(random_state=42)
-'''param_grid = {
-    'n_estimators': [10, 50, 100],
-    'max_depth': [5, 10],
-    'min_samples_split': [2, 5, 6, 7],
-    'min_samples_leaf': [1, 2, 3, 4]
-}
+    model_xg = xgb.XGBClassifier(objective='binary:logistic', eval_metric='logloss', use_label_encoder=False,
+                                       random_state=42)
+    model_xg.fit(x_train, y_train)
+    acc_xg.append(accuracy_score(y_test, model_xg.predict(x_test)))
 
-print("Parameter grid to search:")
-for param, values in param_grid.items():
-    print(f"  {param}: {values}")
+    model_log = LogisticRegression(max_iter=1000, random_state=i)
+    model_log.fit(x_train, y_train)
+    acc_log.append(accuracy_score(y_test, model_log.predict(x_test)))
 
-print("\n5. Initializing GridSearchCV with 'accuracy' as the scoring metric...")
-grid_search = GridSearchCV(
-    estimator=rf_model,
-    param_grid=param_grid,
-    scoring='accuracy',
-    cv=5,
-    verbose=2,
-)
-print("\n6. Starting Grid Search (this may take a moment, evaluating multiple combinations)...")
-grid_search.fit(X_train, y_train)
+    model_nb = GaussianNB()
+    model_nb.fit(x_train, y_train)
+    acc_nb.append(accuracy_score(y_test, model_log.predict(x_test)))
 
-print("\n7. Grid Search completed.")
-print(f"Best parameters found: {grid_search.best_params_}")
-print(f"Best cross-validation accuracy (maximized by Grid Search): {grid_search.best_score_:.4f}")
+    model_dec = DecisionTreeClassifier(random_state=i)
+    model_dec.fit(x_train, y_train)
+    acc_decision.append(accuracy_score(y_test, model_dec.predict(x_test)))
 
-best_rf_model = grid_search.best_estimator_
+    model_knn = KNeighborsClassifier()
+    model_knn.fit(x_train, y_train)
+    acc_knn.append(accuracy_score(y_test, model_knn.predict(x_test)))
 
-print("\n8. Evaluating the best Random Forest model on the test data...")
-y_pred_rf_best = best_rf_model.predict(X_test)'''
+    model_svm= SVC()
+    model_svm.fit(x_train,y_train)
+    acc_svm.append(accuracy_score(y_test,model_svm.predict(x_test)))
 
-rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
-rf_model.fit(X_train, y_train)
-y_pred_rf = rf_model.predict(X_test)
-all_model_metrics['Random Forest'] = print_metrics('Random Forest', y_test, y_pred_rf)
-plt.show()
+    model_multi = LinearRegression()
+    model_multi.fit(x_train, y_train)
+    y_pred_multi = model_multi.predict(x_test)
+    y_pred_class = (y_pred_multi >= 0.5).astype(int)
+    acc_multi.append(accuracy_score(y_test, y_pred_class))
 
-print("\n--- Training XGBoost ---")
-xgb_model = xgb.XGBClassifier(objective='binary:logistic', eval_metric='logloss', use_label_encoder=False, random_state=42)
-xgb_model.fit(X_train, y_train)
-y_pred_xgb = xgb_model.predict(X_test)
-all_model_metrics['XGBoost'] = print_metrics('XGBoost', y_test, y_pred_xgb)
-plt.show()
 
-print("\n--- Training Naive Bayes ---")
-nb_model = GaussianNB()
-nb_model.fit(X_train, y_train)
-y_pred_nb = nb_model.predict(X_test)
-all_model_metrics['Naive Bayes'] = print_metrics('Naive Bayes', y_test, y_pred_nb)
-plt.show()
+fig, axis = plt.subplots(2, 4, figsize=(10, 8))
 
-print("\n--- Training Decision Tree ---")
-dt_model = DecisionTreeClassifier(random_state=42)
-dt_model.fit(X_train, y_train)
-y_pred_dt = dt_model.predict(X_test)
-all_model_metrics['Decision Tree'] = print_metrics('Decision Tree', y_test, y_pred_dt)
-plt.show()
 
-print("\n\n--- Comprehensive Summary of All Model Metrics ---")
-for model_name, metrics in all_model_metrics.items():
-    print(f"\nModel: {model_name}")
-    print(f"  Accuracy: {metrics['Accuracy']:.4f}")
-    print(f"  Loss : {metrics['Loss']:.4f}")
-    print(f"  Precision: {metrics['Precision']:.4f}")
-    print(f"  Recall: {metrics['Recall']:.4f}")
-    print(f"  F1-Score: {metrics['F1-Score']:.4f}")
-    print("  Confusion Matrix:")
-    for row in metrics['Confusion Matrix']:
-        print(f"    {row}")
+axis[0, 0].plot(x_vals, acc_rf, marker='o', color='blue', linestyle='--')
+axis[0, 0].set_title("Random Forest")
+axis[0, 0].set_ylim(0.5, 1.05)
+axis[0, 0].set_yticks(np.arange(0.5, 1.05, 0.05))
+axis[0, 0].grid(True)
 
-model_names = list(all_model_metrics.keys()); metrics_to_plot = ['Accuracy', 'Loss', 'Precision', 'Recall', 'F1-Score']
-plot_data = {metric: [all_model_metrics[model][metric] for model in model_names] for metric in metrics_to_plot}
-colors = ['skyblue', 'lightcoral', 'lightgreen', 'gold', 'mediumpurple']
-bar_width = 0.15
-index = list(range(len(model_names)))
-fig, ax = plt.subplots(figsize=(14, 8))
+axis[0, 1].plot(x_vals, acc_xg, marker='o', color='green', linestyle='--')
+axis[0, 1].set_title("XGBoost")
+axis[0, 1].set_ylim(0.5, 1.05)
+axis[0, 1].set_yticks(np.arange(0.5, 1.05, 0.05))
+axis[0, 1].grid(True)
 
-for i, metric in enumerate(metrics_to_plot): ax.bar([x + (i - (len(metrics_to_plot) - 1) / 2) * bar_width for x in index], plot_data[metric], bar_width, label=metric, color=colors[i])
+axis[0, 2].plot(x_vals, acc_xg, marker='o', color='green', linestyle='--')
+axis[0, 2].set_title("Logistic Regression")
+axis[0, 2].set_ylim(0.5, 1.05)
+axis[0, 2].set_yticks(np.arange(0.5, 1.05, 0.05))
+axis[0, 2].grid(True)
 
-plt.xlabel('Model', fontsize=12)
-plt.ylabel('Score', fontsize=12)
-plt.title('Model Performance Comparison (Test Set)', fontsize=14)
-plt.xticks(index, model_names, rotation=45, ha='right', fontsize=10)
-plt.ylim(0, 1)
-plt.legend(loc='lower right', bbox_to_anchor=(1.0, 0.0), fontsize=10)
-plt.grid(axis='y', linestyle='--', alpha=0.7)
+axis[0, 3].plot(x_vals, acc_xg, marker='o', color='green', linestyle='--')
+axis[0, 3].set_title("Naive Bayes")
+axis[0, 3].set_ylim(0.5, 1.05)
+axis[0, 3].set_yticks(np.arange(0.5, 1.05, 0.05))
+axis[0, 3].grid(True)
+
+axis[1, 0].plot(x_vals, acc_svm, marker='o', color='green', linestyle='--')
+axis[1, 0].set_title("SVM")
+axis[1, 0].set_ylim(0.5, 1.05)
+axis[1, 0].set_yticks(np.arange(0.5, 1.05, 0.05))
+axis[1, 0].grid(True)
+
+axis[1, 1].plot(x_vals, acc_decision, marker='o', color='purple', linestyle='--')
+axis[1, 1].set_title("Decision Tree")
+axis[1, 1].set_ylim(0.5, 1.05)
+axis[1, 1].set_yticks(np.arange(0.5, 1.05, 0.05))
+axis[1, 1].grid(True)
+
+axis[1, 2].plot(x_vals, acc_multi, marker='o', color='orange', linestyle='--')
+axis[1, 2].set_title("Multi-Linear")
+axis[1, 2].set_ylim(0.5, 1.05)
+axis[1, 2].set_yticks(np.arange(0.5, 1.05, 0.05))
+axis[1, 2].grid(True)
+
+axis[1, 3].plot(x_vals, acc_knn, marker='o', color='orange', linestyle='--')
+axis[1, 3].set_title("K-Nearest Neighbors")
+axis[1, 3].set_ylim(0.5, 1.05)
+axis[1, 3].set_yticks(np.arange(0.5, 1.05, 0.05))
+axis[1, 3].grid(True)
+
+
+plt.suptitle("Model Accuracy plot", fontsize=16, y=1)
 plt.tight_layout()
 plt.show()
